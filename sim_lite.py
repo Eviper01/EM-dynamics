@@ -1,24 +1,20 @@
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.animation as animation
-import mpl_toolkits.mplot3d.axes3d as ax3d
 import numpy as np
 from matplotlib.patches import Circle
-import pandas as pd
-from matplotlib.animation import FuncAnimation
-import copy
 
-class Particle(object):
+class Particle():
     """A particle that carries charge and will radiate an electric field."""
     def __init__(self, position, velocity, charge, mass):
-        global id
+        global Particle_id
         self.position = position
         self.velocity = velocity
         self.charge = charge
         self.mass = mass
         self.dead = False
-        self.id = id
-        id += 1
+        self.id = Particle_id
+        Particle_id += 1
     def tostring(self):
         print("pos = {x}, vel = {dx}, charge = {q}".format(x=self.position, dx=self.velocity, q=self.charge))
     def columb_potential(self):
@@ -105,13 +101,13 @@ k = 1e2
 #canvas setup
 n = 1000
 size = 160
-steps = 150
+steps = 50
 x = np.linspace(-size, size, n)
 y = np.linspace(-size, size, n)
 xv, yv = np.meshgrid(x, y, sparse=False)
 # data arhcitercrue
 # list constiing of the [field, [each particles]]
-id = 0
+Particle_id = 0
 data = []
 queue = []
 
@@ -121,14 +117,14 @@ def main():
     particles = []
     # p1 = Particle(np.array([20.0, 10.0]), np.array([0.0,0.0]), +1, 1)
     # p2 = Particle(np.array([-40.0, 20.0]), np.array([0.0,0.0]), -1, 1)
-    p3 = Particle(np.array([0.0, 0.0]), np.array([0.0,0.0]), -1, 1)
-    p4 = Particle(np.array([20.0, 0.0]), np.array([0.0, 2.0]), +1, 1)
-    particles = [p3, p4]
-    # for i in range(5):
-    #     x = 100*np.random.random()-50
-    #     y = 100*np.random.random()-50
-    #     q = 10*np.random.random()-5
-    #     particles.append(Particle(np.array([x,y]), np.array([0.0,0.0]), q, 1))
+    # p3 = Particle(np.array([0.0, 0.0]), np.array([0.0,0.0]), -1, 1)
+    # p4 = Particle(np.array([20.0, 0.0]), np.array([0.0, 2.0]), +1, 1)
+    # particles = [p3, p4]
+    for i in range(5):
+        px = 100*np.random.random()-50
+        py = 100*np.random.random()-50
+        q = 10*np.random.random()-5
+        particles.append(Particle(np.array([px,py]), np.array([0.0,0.0]), q, 1))
 
 
     for i in range(steps):
@@ -186,7 +182,8 @@ def main():
 
     anim = animation.FuncAnimation(fig, animate, frames=data, interval=200, blit=False, repeat=True)
     anim.save('./animation.gif', fps=15)
+    np.save("sim.npy", np.array(data))
     print("done")
-    #
+
 
 main()
