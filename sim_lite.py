@@ -6,15 +6,19 @@ import numpy as np
 from matplotlib.patches import Circle
 import pandas as pd
 from matplotlib.animation import FuncAnimation
-
+import copy
 
 class Particle(object):
     """A particle that carries charge and will radiate an electric field."""
     def __init__(self, position, velocity, charge, mass):
+        global id
         self.position = position
         self.velocity = velocity
         self.charge = charge
         self.mass = mass
+        self.dead = False
+        self.id = id
+        id += 1
     def tostring(self):
         print("pos = {x}, vel = {dx}, charge = {q}".format(x=self.position, dx=self.velocity, q=self.charge))
     def columb_potential(self):
@@ -24,20 +28,29 @@ class Particle(object):
         self.position += self.velocity*delta_t
     def accelerate(self, Ex, Ey):
         qEy, qEx = np.gradient(self.columb_potential())
-        Ex += qEx
-        Ey += qEy
+        nEx = Ex + qEx
+        nEy = Ey + qEy
         try:
-            self.velocity[0] += Ex[self.pindex()[1], self.pindex()[0]]*self.charge/self.mass
-            self.velocity[1] += Ey[self.pindex()[1], self.pindex()[0]]*self.charge/self.mass
+            self.velocity[0] += nEx[self.pindex()[1], self.pindex()[0]]*self.charge/self.mass
+            self.velocity[1] += nEy[self.pindex()[1], self.pindex()[0]]*self.charge/self.mass
         except IndexError:
             pass
+    def check_collision(self, particles):
+        for particle in particles:
+            if np.linalg.norm(particle.position - self.position) < 10 and particle != self:
+                self.dead = True
+                new_charge = self.charge + particle.charge
+                new_mass = self.mass + particle.mass
+                new_velocity = (self.velocity*self.mass + particle.velocity*particle.mass)/new_mass
+                new_position = (particle.position + self.position)/2
+                queue.append(np.array([new_position,new_velocity, new_charge, new_mass, {self.id, particle.id}]))
     def pindex(self):
         idx = (np.abs(x - self.position[0])).argmin()
         idy = (np.abs(y - self.position[1])).argmin()
         return idx, idy
     def get_summary(self):
-        summary = [self.position, self.charge]
-        return summary
+        summary = [self.position*1, self.charge*1]
+        return summary[:]
 
 
 def Efield(particles):
@@ -67,21 +80,18 @@ def field_visualise(Ex, Ey, particles):
 
     return plt
 
-def animated_field(field):
-#plots field lines
-    Ex = field[0]
-    Ey = field[1]
-    color = 2 * np.log(np.hypot(Ex, Ey))
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.streamplot(xv, yv, Ex, Ey, color=color, linewidth=1, cmap=cm.plasma,
-                  density=2, arrowstyle='->', arrowsize=1.5)
-    ax.set_xlabel('$x$')
-    ax.set_ylabel('$y$')
-    ax.set_xlim(-size,size)
-    ax.set_ylim(-size,size)
-    ax.set_aspect('equal')
-    return plt
+def remove_dupe(dupelist):
+    col_ids = [array[4] for array in dupelist]
+    out_ids = []
+    for col_id in col_ids:
+        if col_id not in out_ids:
+            out_ids.append(col_id)
+    out = []
+    for element in dupelist:
+        if element[4] in out_ids:
+            out.append(element)
+            out_ids.remove(element[4])
+    return out
 
 
 #constants
@@ -93,57 +103,90 @@ delta_t = 1
 # k = 1/(4*np.pi*Epsilon0)
 k = 1e2
 #canvas setup
-n = 500
-size = 80
+n = 1000
+size = 160
+steps = 150
 x = np.linspace(-size, size, n)
 y = np.linspace(-size, size, n)
 xv, yv = np.meshgrid(x, y, sparse=False)
 # data arhcitercrue
 # list constiing of the [field, [each particles]]
+id = 0
 data = []
+queue = []
+
+
 def main():
+    global queue
+    particles = []
+    # p1 = Particle(np.array([20.0, 10.0]), np.array([0.0,0.0]), +1, 1)
+    # p2 = Particle(np.array([-40.0, 20.0]), np.array([0.0,0.0]), -1, 1)
+    p3 = Particle(np.array([0.0, 0.0]), np.array([0.0,0.0]), -1, 1)
+    p4 = Particle(np.array([20.0, 0.0]), np.array([0.0, 2.0]), +1, 1)
+    particles = [p3, p4]
+    # for i in range(5):
+    #     x = 100*np.random.random()-50
+    #     y = 100*np.random.random()-50
+    #     q = 10*np.random.random()-5
+    #     particles.append(Particle(np.array([x,y]), np.array([0.0,0.0]), q, 1))
 
-    p1 = Particle(np.array([20.0, 10.0]), np.array([0.0,0.0]), +1, 1)
-    p2 = Particle(np.array([-40.0, 20.0]), np.array([0.0,0.0]), -1, 1)
-    p3 = Particle(np.array([0.0, 0.0]), np.array([0.0,0.0]), -5, 1)
-    p4 = Particle(np.array([20.0, -30.0]), np.array([0.0,0.0]), +3, 1)
-    particles = [p1 ,p2, p3, p4]
-    # particles = [p1, p2]
 
-    for i in range(100):
+    for i in range(steps):
+
+        queue = []
+        charge_data = []
         Ex, Ey, Vfield = Efield(particles)
-        data.append([Ex, Ey])
         # field_visualise(Ex, Ey, particles).show()
         for particle in particles:
             particle.accelerate(Ex, Ey)
+        for particle in particles:
             particle.travel()
+        for particle in particles:
+            particle.check_collision(particles)
+        for particle in particles:
+            charge_data.append(particle.get_summary())
+        new_p = []
+        for particle in particles:
+            if particle.dead is False:
+                new_p.append(particle)
+        particles = new_p
+        queue = remove_dupe(queue)  # not having this is fucking funny
+        for particle in queue:
+            particles.append(Particle(particle[0], particle[1], particle[2], particle[3]))
+        data.append(([Ex, Ey], charge_data))
 
-    fig, ax = plt.subplots()
-    xdata, ydata = [], []
-    ln, = plt.plot([], [], 'ro')
+    print("Simulation Complete")
+    #animatin method
 
-    def init():
-        ax.set_xlim(-size, size)
-        ax.set_ylim(-size, size)
-        return ln,
+    def animate(frame):
+        ax.collections = [] # clear lines streamplot
+        ax.patches = [] # clear arrowheads streamplot
+        ax.artists = [] #clears the particles postions
+        color = 2 * np.log(np.hypot(Ex, Ey))
+        stream = ax.streamplot(xv,yv,frame[0][0], frame[0][1], color=color, density=2, linewidth=1, cmap=cm.plasma, arrowsize=1.5, arrowstyle='->')
+        dots = []
+        charge_colors = {True: '#aa0000', False: '#0000aa'}
+        for particle in frame[1]:
+            dots.append(ax.add_artist(Circle(particle[0], size*0.025, color=charge_colors[particle[1]>0])))
+        return stream
 
-    def update(frame):
-        xdata.append(frame)
-        ydata.append(np.sin(frame))
-        ln.set_data(xdata, ydata)
-        return ln,
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xlim(-size,size)
+    ax.set_ylim(-size,size)
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_aspect('equal')
+    color = 2 * np.log(np.hypot(Ex, Ey))
+    stream = ax.streamplot(xv, yv, data[0][0][0], data[0][0][1], color=color, linewidth=1, cmap=cm.plasma,
+                  density=2, arrowstyle='->', arrowsize=1.5)
+    dots = []
+    charge_colors = {True: '#aa0000', False: '#0000aa'}
+    for particle in data[0][1]:
+        dots.append(ax.add_artist(Circle(particle[0], size*0.025, color=charge_colors[particle[1]>0])))
 
-    ani = FuncAnimation(fig, update, frames=data),
-                        init_func=init, blit=True)
-    plt.show()
-
+    anim = animation.FuncAnimation(fig, animate, frames=data, interval=200, blit=False, repeat=True)
+    anim.save('./animation.gif', fps=15)
+    print("done")
+    #
 
 main()
-
-#add charge anihilation
-#animation
-
-    #deprciated
-#
-# plt.pcolormesh(xv, yv, (Vfield), cmap = cm.bwr)
-# plt.show()
