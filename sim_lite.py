@@ -8,15 +8,32 @@ import pandas as pd
 
 class Particle(object):
     """A particle that carries charge and will radiate an electric field."""
-    def __init__(self, position, velocity, charge):
+    def __init__(self, position, velocity, charge, mass):
         self.position = position
         self.velocity = velocity
         self.charge = charge
+        self.mass = mass
     def tostring(self):
         print("pos = {x}, vel = {dx}, charge = {q}".format(x=self.position, dx=self.velocity, q=self.charge))
     def columb_potential(self):
-        potential = np.where(np.sqrt((xv-self.position[0])**2 + (yv-self.position[1])**2) < 1e-6, 0 , (k*self.charge)/(np.sqrt((xv-self.position[0])**2 + (yv-self.position[1])**2)))
+        potential = np.where(np.sqrt((xv-self.position[0])**2 + (yv-self.position[1])**2) < 1e-3, 0 , (k*self.charge)/(np.sqrt((xv-self.position[0])**2 + (yv-self.position[1])**2)))
         return potential
+    def travel(self):
+        self.position += self.velocity*delta_t
+    def accelerate(self, Ex, Ey):
+        qEy, qEx = np.gradient(self.columb_potential())
+        Ex += qEx
+        Ey += qEy
+        try:
+            self.velocity[0] += Ex[self.pindex()[1], self.pindex()[0]]*self.charge/self.mass
+            self.velocity[1] += Ey[self.pindex()[1], self.pindex()[0]]*self.charge/self.mass
+        except IndexError:
+            pass
+    def pindex(self):
+        idx = (np.abs(x - self.position[0])).argmin()
+        idy = (np.abs(y - self.position[1])).argmin()
+        return idx, idy
+
 
 def Efield(particles):
     Vfield = particles[0].columb_potential()
@@ -40,34 +57,44 @@ def field_visualise(Ex, Ey, particles):
     ax.set_aspect('equal')
     #plots charges
     charge_colors = {True: '#aa0000', False: '#0000aa'}
-
     for particle in particles:
         ax.add_artist(Circle(particle.position, size*0.05, color=charge_colors[particle.charge>0]))
 
     return plt
 
-#constants
-Mu0 = 4*np.pi*10**(-7)
-Epsilon0 = 8.854187812813*10**(-12)
-delta_t = 0.001
-k = 1/(4*np.pi*Epsilon0)
 
+#constants
+# Mu0 = 4*np.pi*10**(-7)
+Mu0 = 1
+dim = 2
+# Epsilon0 = 8.854187812813*10**(-12)
+delta_t = 1
+# k = 1/(4*np.pi*Epsilon0)
+k = 1e2
 #canvas setup
-n = 5000
-size = 400
+n = 500
+size = 80
 x = np.linspace(-size, size, n)
 y = np.linspace(-size, size, n)
 xv, yv = np.meshgrid(x, y, sparse=False)
 
 def main():
-    p1 = Particle([20, 10], [0,0], +1)
-    p2 = Particle([-30, 20], [0,0], -1)
-    p3 = Particle([0, 0], [0,0], -5)
-    p4 = Particle([20, -30], [0,0], +3)
-    particles = [p1, p2, p3, p4]
-    Ex, Ey, Vfield = Efield(particles)
-    field_visualise(Ex, Ey, particles).show()
+    p1 = Particle(np.array([20.0, 10.0]), np.array([0.0,0.0]), +1, 1)
+    p2 = Particle(np.array([-30.0, 20.0]), np.array([0.0,0.0]), -1, 1)
+    p3 = Particle(np.array([0.0, 0.0]), np.array([0.0,0.0]), -5, 1)
+    p4 = Particle(np.array([20.0, -30.0]), np.array([0.0,0.0]), +3, 1)
+    particles = [p1 ,p2, p3, p4]
+    # particles = [p1, p2]
+
+    for i in range(10):
+        Ex, Ey, Vfield = Efield(particles)
+        lx, ly, Vfield = Efield([p2, p3, p4])
+        field_visualise(lx, ly, particles).show()
+        p1.accelerate(Ex, Ey)
+        p1.travel()
+            # particle.tostring()
 main()
+
     #deprciated
 #
 # plt.pcolormesh(xv, yv, (Vfield), cmap = cm.bwr)
