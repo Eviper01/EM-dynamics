@@ -5,6 +5,8 @@ import mpl_toolkits.mplot3d.axes3d as ax3d
 import numpy as np
 from matplotlib.patches import Circle
 import pandas as pd
+from matplotlib.animation import FuncAnimation
+
 
 class Particle(object):
     """A particle that carries charge and will radiate an electric field."""
@@ -16,7 +18,7 @@ class Particle(object):
     def tostring(self):
         print("pos = {x}, vel = {dx}, charge = {q}".format(x=self.position, dx=self.velocity, q=self.charge))
     def columb_potential(self):
-        potential = np.where(np.sqrt((xv-self.position[0])**2 + (yv-self.position[1])**2) < 1e-3, 0 , (k*self.charge)/(np.sqrt((xv-self.position[0])**2 + (yv-self.position[1])**2)))
+        potential = (k*self.charge)/(np.sqrt((xv-self.position[0])**2 + (yv-self.position[1])**2))
         return potential
     def travel(self):
         self.position += self.velocity*delta_t
@@ -33,6 +35,9 @@ class Particle(object):
         idx = (np.abs(x - self.position[0])).argmin()
         idy = (np.abs(y - self.position[1])).argmin()
         return idx, idy
+    def get_summary(self):
+        summary = [self.position, self.charge]
+        return summary
 
 
 def Efield(particles):
@@ -62,6 +67,22 @@ def field_visualise(Ex, Ey, particles):
 
     return plt
 
+def animated_field(field):
+#plots field lines
+    Ex = field[0]
+    Ey = field[1]
+    color = 2 * np.log(np.hypot(Ex, Ey))
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.streamplot(xv, yv, Ex, Ey, color=color, linewidth=1, cmap=cm.plasma,
+                  density=2, arrowstyle='->', arrowsize=1.5)
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_xlim(-size,size)
+    ax.set_ylim(-size,size)
+    ax.set_aspect('equal')
+    return plt
+
 
 #constants
 # Mu0 = 4*np.pi*10**(-7)
@@ -77,23 +98,50 @@ size = 80
 x = np.linspace(-size, size, n)
 y = np.linspace(-size, size, n)
 xv, yv = np.meshgrid(x, y, sparse=False)
-
+# data arhcitercrue
+# list constiing of the [field, [each particles]]
+data = []
 def main():
+
     p1 = Particle(np.array([20.0, 10.0]), np.array([0.0,0.0]), +1, 1)
-    p2 = Particle(np.array([-30.0, 20.0]), np.array([0.0,0.0]), -1, 1)
+    p2 = Particle(np.array([-40.0, 20.0]), np.array([0.0,0.0]), -1, 1)
     p3 = Particle(np.array([0.0, 0.0]), np.array([0.0,0.0]), -5, 1)
     p4 = Particle(np.array([20.0, -30.0]), np.array([0.0,0.0]), +3, 1)
     particles = [p1 ,p2, p3, p4]
     # particles = [p1, p2]
 
-    for i in range(10):
+    for i in range(100):
         Ex, Ey, Vfield = Efield(particles)
-        lx, ly, Vfield = Efield([p2, p3, p4])
-        field_visualise(lx, ly, particles).show()
-        p1.accelerate(Ex, Ey)
-        p1.travel()
-            # particle.tostring()
+        data.append([Ex, Ey])
+        # field_visualise(Ex, Ey, particles).show()
+        for particle in particles:
+            particle.accelerate(Ex, Ey)
+            particle.travel()
+
+    fig, ax = plt.subplots()
+    xdata, ydata = [], []
+    ln, = plt.plot([], [], 'ro')
+
+    def init():
+        ax.set_xlim(-size, size)
+        ax.set_ylim(-size, size)
+        return ln,
+
+    def update(frame):
+        xdata.append(frame)
+        ydata.append(np.sin(frame))
+        ln.set_data(xdata, ydata)
+        return ln,
+
+    ani = FuncAnimation(fig, update, frames=data),
+                        init_func=init, blit=True)
+    plt.show()
+
+
 main()
+
+#add charge anihilation
+#animation
 
     #deprciated
 #
