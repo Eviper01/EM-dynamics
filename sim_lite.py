@@ -181,7 +181,7 @@ def main():
         dots.append(ax.add_artist(Circle(particle[0], size*0.025, color=charge_colors[particle[1]>0])))
 
     anim = animation.FuncAnimation(fig, animate, frames=data, interval=200, blit=False, repeat=True)
-    anim.save('./animation.gif', fps=15)
+    anim.save('./animation.gif', fps=15, writer="pillow")
     np.save("sim.npy", np.array(data))
     print("done")
 
